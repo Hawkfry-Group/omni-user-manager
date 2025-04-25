@@ -1,0 +1,6 @@
+userName,displayName,active,email,id,groups,userAttributes
+person_1@example.com,awesome name,true,person_1@example.com,user_id_1,"[]","{}"
+person_2@example.com,not so awesome name,true,person_2@example.com,user_id_2,"[]","{}"
+awesome_person@example.com,awesome person,true,awesome_person@example.com,user_id_3,"[""nPpX8Hw-""]","{}"
+great_person@example.com,great person,true,great_person@example.com,user_id_4,"[""G2zkcWem"",""nPpX8Hw-""]","{""user_attribute_4"":[""val2""],""user_attribute_1"":""true"",""user_attribute_2"":""true"",""user_attribute_3"":[""12345""],""omni_user_timezone"":null}"
+bob@example.com,bob@example.com,true,bob@example.com,user_id_5"[]","{""gcp_project"":[""12345""],""user_attribute_1"":""false"",""omni_user_timezone"":null}"
