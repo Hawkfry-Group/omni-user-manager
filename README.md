@@ -126,7 +126,7 @@ group-id,group-name,["user-id-1", "user-id-2"]
 To install in development mode:
 
 ```bash
-git clone https://github.com/hawkfry/omni-user-manager.git
+git clone git@github.com:Hawkfry-Group/omni-user-manager.git
 cd omni-user-manager
 pip install -e .
 ```
