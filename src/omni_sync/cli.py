@@ -102,6 +102,9 @@ def main() -> int:
     # Export/Import subcommands
     export_users_json_parser = subparsers.add_parser('export-users-json', help='Export all users as JSON')
     export_groups_json_parser = subparsers.add_parser('export-groups-json', help='Export all groups as JSON')
+    export_users_csv_parser = subparsers.add_parser('export-users-csv', help='Export all users as CSV')
+    export_users_csv_parser.add_argument('output_file', help='Path to output CSV file')
+    export_groups_json_parser.add_argument('output_file', help='Path to output JSON file')
 
     # Audit/History subcommands
     get_user_history_parser = subparsers.add_parser('get-user-history', help='Get history of changes for a user')
@@ -110,6 +113,15 @@ def main() -> int:
     get_group_history_parser = subparsers.add_parser('get-group-history', help='Get history of changes for a group')
     get_group_history_parser.add_argument('group_id', help='Group ID')
 
+    # User Deletion subcommands
+    delete_user_parser = subparsers.add_parser('delete-user', help='Delete a user by ID')
+    delete_user_parser.add_argument('user_id', help='User ID to delete')
+    delete_user_parser.add_argument('--yes', action='store_true', help='Confirm deletion without prompting')
+
+    bulk_delete_users_parser = subparsers.add_parser('bulk-delete-users', help='Delete multiple users by IDs from a file (JSON or CSV)')
+    bulk_delete_users_parser.add_argument('user_ids_file', help='Path to file containing user IDs (JSON array or CSV with id column)')
+    bulk_delete_users_parser.add_argument('--yes', action='store_true', help='Confirm deletion without prompting')
+
     args = parser.parse_args()
 
     # Handle subcommands
@@ -117,6 +129,20 @@ def main() -> int:
         from .api import OmniAPI
         api = OmniAPI()
         result = api.get_user_by_id(args.user_id)
+        import json
+        print(json.dumps(result, indent=2))
+        return 0
+    elif args.command == 'search-users':
+        from .api import OmniAPI
+        api = OmniAPI()
+        result = api.search_users(args.query)
+        import json
+        print(json.dumps(result, indent=2))
+        return 0
+    elif args.command == 'get-user-attributes':
+        from .api import OmniAPI
+        api = OmniAPI()
+        result = api.get_user_attributes(args.user_id)
         import json
         print(json.dumps(result, indent=2))
         return 0
@@ -194,6 +220,131 @@ def main() -> int:
         elif args.mode == 'attributes':
             print("🔄 Running attributes-only sync")
             results = sync.sync_attributes()
+        return 0
+    elif args.command == 'get-group-by-id':
+        from .api import OmniAPI
+        api = OmniAPI()
+        result = api.get_group_by_id(args.group_id)
+        import json
+        print(json.dumps(result, indent=2))
+        return 0
+    elif args.command == 'search-groups':
+        from .api import OmniAPI
+        api = OmniAPI()
+        result = api.search_groups(args.query)
+        import json
+        print(json.dumps(result, indent=2))
+        return 0
+    elif args.command == 'get-group-members':
+        from .api import OmniAPI
+        api = OmniAPI()
+        result = api.get_group_members(args.group_id)
+        import json
+        print(json.dumps(result, indent=2))
+        return 0
+    elif args.command == 'bulk-create-users':
+        from .api import OmniAPI
+        import os, json
+        api = OmniAPI()
+        # Determine file type by extension
+        if args.users_file.endswith('.json'):
+            with open(args.users_file, 'r') as f:
+                data = json.load(f)
+                users = data["Resources"] if "Resources" in data else data
+        elif args.users_file.endswith('.csv'):
+            import csv
+            users = []
+            with open(args.users_file, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    users.append(row)
+        else:
+            print("Unsupported file type. Please provide a .json or .csv file.")
+            return 1
+        result = api.bulk_create_users(users)
+        print(json.dumps(result, indent=2))
+        print(f"\nSummary: {len(result['success'])} succeeded, {len(result['failure'])} failed, {len(result['skipped'])} skipped (already exists).")
+        return 0
+    elif args.command == 'bulk-update-users':
+        from .api import OmniAPI
+        import os, json
+        api = OmniAPI()
+        # Determine file type by extension
+        if args.users_file.endswith('.json'):
+            with open(args.users_file, 'r') as f:
+                data = json.load(f)
+                users = data["Resources"] if "Resources" in data else data
+        elif args.users_file.endswith('.csv'):
+            import csv
+            users = []
+            with open(args.users_file, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    users.append(row)
+        else:
+            print("Unsupported file type. Please provide a .json or .csv file.")
+            return 1
+        result = api.bulk_update_users(users)
+        print(json.dumps(result, indent=2))
+        print(f"\nSummary: {len(result['success'])} succeeded, {len(result['failure'])} failed.")
+        return 0
+    elif args.command == 'delete-user':
+        from .api import OmniAPI
+        api = OmniAPI()
+        user_id = args.user_id
+        if not args.yes:
+            confirm = input(f"⚠️  Are you sure you want to delete user with ID '{user_id}'? This operation cannot be undone. Type 'yes' to confirm: ")
+            if confirm.strip().lower() != 'yes':
+                print("Aborted. No users were deleted.")
+                return 0
+        try:
+            api.delete_user(user_id)
+            print(f"✅ User '{user_id}' deleted successfully.")
+        except Exception as e:
+            print(f"❌ Failed to delete user '{user_id}': {e}")
+        return 0
+    elif args.command == 'bulk-delete-users':
+        from .api import OmniAPI
+        import os, json
+        api = OmniAPI()
+        user_ids = []
+        if args.user_ids_file.endswith('.json'):
+            with open(args.user_ids_file, 'r') as f:
+                data = json.load(f)
+                user_ids = data if isinstance(data, list) else data.get('user_ids', [])
+        elif args.user_ids_file.endswith('.csv'):
+            import csv
+            with open(args.user_ids_file, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if 'id' in row:
+                        user_ids.append(row['id'])
+        else:
+            print("Unsupported file type. Please provide a .json or .csv file.")
+            return 1
+        if not user_ids:
+            print("No user IDs found in the provided file.")
+            return 1
+        if not args.yes:
+            confirm = input(f"⚠️  Are you sure you want to delete {len(user_ids)} users? This operation cannot be undone. Type 'yes' to confirm: ")
+            if confirm.strip().lower() != 'yes':
+                print("Aborted. No users were deleted.")
+                return 0
+        result = api.bulk_delete_users(user_ids)
+        print(json.dumps(result, indent=2))
+        print(f"\nSummary: {len(result['success'])} succeeded, {len(result['failure'])} failed.")
+        return 0
+    elif args.command == 'export-users-csv':
+        from .api import OmniAPI
+        api = OmniAPI()
+        api.export_users_csv(args.output_file)
+        print(f"✅ Exported all users to CSV: {args.output_file}")
+        return 0
+    elif args.command == 'export-groups-json':
+        from .api import OmniAPI
+        api = OmniAPI()
+        api.export_groups_json(args.output_file)
+        print(f"✅ Exported all groups to JSON: {args.output_file}")
         return 0
     # TODO: Implement other subcommands as the corresponding API methods are added
     print(f"Unknown or unimplemented command: {args.command}")

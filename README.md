@@ -19,25 +19,28 @@ OMNI_API_KEY=your_omni_api_key
 
 ## Usage
 
+You can use either `omni-um` or `omni-user-manager` as the CLI command. All examples below use `omni-um` for brevity, but both commands are fully supported and interchangeable.
+
 The package uses a subcommand-based CLI structure for all major operations. Example usage:
 
 ### Common Commands
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `sync` | Synchronize users, groups, and attributes | `omni-user-manager sync --source csv --users data/users.csv --groups data/groups.csv` |
-| `get-user-by-id [USER_ID]` | Get a user by ID (or all users if no ID) | `omni-user-manager get-user-by-id` |
-| `search-users --query QUERY` | Search users by query string | `omni-user-manager search-users --query "alice"` |
-| `get-user-attributes USER_ID` | Get a user's custom attributes | `omni-user-manager get-user-attributes 123` |
-| `get-group-by-id [GROUP_ID]` | Get a group by ID (or all groups if no ID) | `omni-user-manager get-group-by-id` |
-| `search-groups --query QUERY` | Search groups by query string | `omni-user-manager search-groups --query "dev"` |
-| `get-group-members GROUP_ID` | Get all members of a group | `omni-user-manager get-group-members 456` |
-| `bulk-create-users USERS_FILE` | Create multiple users from a file | `omni-user-manager bulk-create-users data/users.json` |
-| `bulk-update-users USERS_FILE` | Update multiple users from a file | `omni-user-manager bulk-update-users data/users.json` |
-| `export-users-json` | Export all users as JSON | `omni-user-manager export-users-json` |
-| `export-groups-json` | Export all groups as JSON | `omni-user-manager export-groups-json` |
-| `get-user-history USER_ID` | Get history of changes for a user | `omni-user-manager get-user-history 123` |
-| `get-group-history GROUP_ID` | Get history of changes for a group | `omni-user-manager get-group-history 456` |
+| `sync` | Synchronize users, groups, and attributes | `omni-um sync --source csv --users data/users.csv --groups data/groups.csv` |
+| `get-user-by-id [USER_ID]` | Get a user by ID (or all users if no ID) | `omni-um get-user-by-id` |
+| `search-users --query QUERY` | Search users by email address (userName attribute, must be full email address) | `omni-um search-users --query "user@example.com"` |
+| `get-user-attributes USER_ID` | Get a user's custom attributes by user ID | `omni-um get-user-attributes 123` |
+| `get-group-by-id [GROUP_ID]` | Get a group by ID (or all groups if no ID) | `omni-um get-group-by-id` |
+| `search-groups --query QUERY` | Search groups by displayName (must be full group name, exact match) | `omni-um search-groups --query "Admins"` |
+| `get-group-members GROUP_ID` | Get all members of a group by group ID | `omni-um get-group-members 456` |
+| `bulk-create-users USERS_FILE` | Create multiple users from a file (skips users that already exist) | `omni-um bulk-create-users data/users.json` |
+| `bulk-update-users USERS_FILE` | Update multiple users from a file | `omni-um bulk-update-users data/users.json` |
+| `delete-user USER_ID [--yes]` | Delete a user by ID (with confirmation prompt unless --yes is provided) | `omni-um delete-user fb46d9ee-95e7-4256-abf0-832af6c27f6b` |
+| `bulk-delete-users USERS_FILE [--yes]` | Delete multiple users by IDs from a file (CSV or JSON, with confirmation prompt unless --yes is provided) | `omni-um bulk-delete-users all_users.csv` |
+| `export-users-json` | Export all users as JSON | `omni-um export-users-json` |
+| `export-users-csv OUTPUT_FILE` | Export all users as CSV (id, userName, displayName, active, email) | `omni-um export-users-csv all_users.csv` |
+| `export-groups-json OUTPUT_FILE` | Export all groups as JSON | `omni-um export-groups-json all_groups.json` |
 
 > **Migration Note:**
 > The CLI previously used top-level arguments (e.g., `--get-user-by-id`, `--source`, etc.).
@@ -66,13 +69,13 @@ Use this when your user and group data is in a single JSON file following the SC
 
 ```bash
 # Full sync (groups and attributes)
-omni-user-manager --source json --users data/users.json
+omni-um sync --source json --users data/users.json
 
 # Groups-only sync
-omni-user-manager --source json --users data/users.json --mode groups
+omni-um sync --source json --users data/users.json --mode groups
 
 # Attributes-only sync
-omni-user-manager --source json --users data/users.json --mode attributes
+omni-um sync --source json --users data/users.json --mode attributes
 ```
 
 Example JSON format (`users.json`):
@@ -112,13 +115,13 @@ Use this when your user data and group memberships are in separate CSV files:
 
 ```bash
 # Full sync (groups and attributes)
-omni-user-manager sync --source csv --users data/users.csv --groups data/groups.csv
+omni-um sync --source csv --users data/users.csv --groups data/groups.csv
 
 # Groups-only sync
-omni-user-manager sync --source csv --users data/users.csv --groups data/groups.csv --mode groups
+omni-um sync --source csv --users data/users.csv --groups data/groups.csv --mode groups
 
 # Attributes-only sync
-omni-user-manager sync --source csv --users data/users.csv --groups data/groups.csv --mode attributes
+omni-um sync --source csv --users data/users.csv --groups data/groups.csv --mode attributes
 ```
 
 Example CSV formats:
@@ -161,6 +164,28 @@ pip install -e .
 
 - User attributes are updated using SCIM PUT operations
 - Null values in user attributes are handled by removing the attribute
-- Multi-value attributes (like `gcp_project`) should be provided as arrays
-- Single-value attributes (like `axel_user`) should be provided as strings
+- Multi-value attributes should be provided as arrays
+- Single-value attributes should be provided as strings
 - The tool will only update attributes that have changed from their current values in Omni
+
+> **Important:** Omni assigns its own unique user IDs when users are created. Any update or delete operation (such as `bulk-update-users`) must use the Omni-assigned IDs, not placeholder or pre-specified IDs from your input files. To obtain the correct IDs, use the `search-users` or `export-users-json` command after creation and use those IDs for subsequent operations.
+
+> **Note:** DELETE operations return 204 No Content on success. The CLI now handles this correctly and does not treat it as an error.
+
+> **Note:** The `search-users` command requires the full email address (userName) for an exact match. Partial matches are not supported by the Omni API.
+
+> **Note:** The `get-user-attributes` command returns the user's custom attributes (if any) as a JSON object. If the user has no custom attributes, an empty object is returned.
+
+> **Note:** The `get-group-by-id` command returns a group by ID, or all groups if no ID is provided.
+
+> **Note:** The `search-groups` command searches by group displayName and requires the full group name for an exact match.
+
+> **Note:** The `get-group-members` command returns all members of a group by group ID as a JSON array.
+
+> **Note:** The `bulk-create-users` command skips users that already exist (HTTP 409), reporting them in a 'skipped' list. The summary at the end shows succeeded, failed, and skipped counts.
+
+> **Note:** The `delete-user` and `bulk-delete-users` commands require confirmation before deleting users, unless the `--yes` flag is provided. This is to prevent accidental deletion. The CLI will prompt you to type 'yes' to confirm the operation.
+
+> **Note:** The `export-groups-json` command exports all groups as a JSON array of group objects, each with fields such as id, displayName, and members.
+
+> **Note:** User and group history (audit) is not available via this CLI. To view audit history, please refer to the Omni platform's audit logs or logging dashboard.
