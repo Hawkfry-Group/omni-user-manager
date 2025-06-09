@@ -217,13 +217,10 @@ class OmniClient:
         """
         try:
             filter_str = f'displayName eq "{query}"'
-            response = requests.get(
-                f"{self.base_url}/scim/v2/groups",
-                headers=self.headers,
-                params={"filter": filter_str}
-            )
-            response.raise_for_status()
-            return response.json().get('Resources', [])
+            # _make_request does not support query params, so add support here
+            endpoint = f'/scim/v2/groups?filter={requests.utils.quote(filter_str)}'
+            response = self._make_request('GET', endpoint)
+            return response.get('Resources', [])
         except Exception as e:
             print(f"\n❌ Error searching groups with query '{query}': {str(e)}")
             return []
