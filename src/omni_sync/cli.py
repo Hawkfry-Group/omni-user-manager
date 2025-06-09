@@ -101,6 +101,7 @@ def main() -> int:
 
     # Export/Import subcommands
     export_users_json_parser = subparsers.add_parser('export-users-json', help='Export all users as JSON')
+    export_users_json_parser.add_argument('output_file', help='Path to output JSON file')
     export_groups_json_parser = subparsers.add_parser('export-groups-json', help='Export all groups as JSON')
     export_users_csv_parser = subparsers.add_parser('export-users-csv', help='Export all users as CSV')
     export_users_csv_parser.add_argument('output_file', help='Path to output CSV file')
@@ -345,6 +346,21 @@ def main() -> int:
         api = OmniAPI()
         api.export_groups_json(args.output_file)
         print(f"✅ Exported all groups to JSON: {args.output_file}")
+        return 0
+    elif args.command == 'export-users-json':
+        from .api import OmniAPI
+        api = OmniAPI()
+        users = api.get_users()
+        import json
+        with open(args.output_file, 'w', encoding='utf-8') as f:
+            json.dump(users, f, indent=2)
+        print(f"✅ Exported all users to JSON: {args.output_file}")
+        return 0
+    elif args.command == 'get-user-history':
+        print("User history (audit) is not available via this CLI. Please refer to the Omni platform's audit logs or logging dashboard.")
+        return 0
+    elif args.command == 'get-group-history':
+        print("Group history (audit) is not available via this CLI. Please refer to the Omni platform's audit logs or logging dashboard.")
         return 0
     # TODO: Implement other subcommands as the corresponding API methods are added
     print(f"Unknown or unimplemented command: {args.command}")
