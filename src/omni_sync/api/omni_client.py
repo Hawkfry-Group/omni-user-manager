@@ -22,10 +22,16 @@ class OmniClient:
             response = requests.request(method, url, headers=self.headers, json=data)
             response.raise_for_status()
             return response.json()
+        except requests.exceptions.JSONDecodeError as e:
+            print(f"\n❌ API JSON Decode Error: {str(e)}")
+            print(f"Response Status Code: {response.status_code if 'response' in locals() else 'N/A'}")
+            print(f"Response Text: {response.text if 'response' in locals() else 'N/A'}")
+            raise
         except requests.exceptions.RequestException as e:
             print(f"\n❌ API request failed: {str(e)}")
             if hasattr(e, 'response') and e.response is not None:
-                print(f"Response: {e.response.text}")
+                print(f"Response Status Code: {e.response.status_code}")
+                print(f"Response Text: {e.response.text}")
             raise
     
     # User operations
