@@ -12,6 +12,7 @@ setup(
     entry_points={
         "console_scripts": [
             "omni-user-manager=omni_sync.cli:main",
+            "omni-um=omni_sync.cli:main",
         ],
     },
     python_requires=">=3.7",

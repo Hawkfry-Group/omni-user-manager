@@ -36,3 +36,74 @@ class OmniAPI:
     def update_group(self, group_data: dict) -> dict:
         """Update a group's attributes and members"""
         return self.client.update_group(group_data)
+    
+    def get_user_by_id(self, user_id: str = None):
+        """Get a user by ID, or all users if no ID is provided."""
+        return self.client.get_user_by_id(user_id)
+    
+    def search_users(self, query: str) -> list:
+        """
+        Search users by email address (userName attribute).
+        The query must be the full email address (exact match).
+        Example: search_users('user@example.com')
+        """
+        return self.client.search_users(query)
+    
+    def get_user_attributes(self, user_id: str) -> dict:
+        """
+        Get a user's custom attributes by user ID.
+        Returns the 'urn:omni:params:1.0:UserAttribute' dict if present, else an empty dict.
+        """
+        return self.client.get_user_attributes(user_id)
+    
+    def get_group_by_id(self, group_id: str = None):
+        """
+        Get a group by ID, or all groups if no ID is provided.
+        If group_id is None or empty, returns all groups.
+        """
+        return self.client.get_group_by_id(group_id)
+    
+    def search_groups(self, query: str) -> list:
+        """
+        Search groups by displayName (exact match).
+        The query must be the full group name (exact match).
+        Example: search_groups('Admins')
+        """
+        return self.client.search_groups(query)
+    
+    def get_group_members(self, group_id: str) -> list:
+        """
+        Get all members of a group by group ID.
+        Returns the 'members' list if present, else an empty list.
+        """
+        return self.client.get_group_members(group_id)
+    
+    def bulk_create_users(self, users: list) -> dict:
+        """
+        Create multiple users in a single request (one by one).
+        Returns a summary with lists of successes and failures.
+        """
+        return self.client.bulk_create_users(users)
+    
+    def bulk_update_users(self, users: list) -> dict:
+        """
+        Update multiple users in a single request (one by one).
+        Returns a summary with lists of successes and failures.
+        """
+        return self.client.bulk_update_users(users)
+    
+    def delete_user(self, user_id: str) -> None:
+        """Delete a user by Omni-assigned ID."""
+        return self.client.delete_user(user_id)
+    
+    def bulk_delete_users(self, user_ids: list) -> dict:
+        """Delete multiple users by Omni-assigned IDs."""
+        return self.client.bulk_delete_users(user_ids)
+    
+    def export_users_csv(self, file_path: str) -> None:
+        """Export all users to a CSV file with columns: id, userName, displayName, active, email"""
+        return self.client.export_users_csv(file_path)
+    
+    def export_groups_json(self, file_path: str) -> None:
+        """Export all groups to a JSON file at the given path."""
+        return self.client.export_groups_json(file_path)
