@@ -170,13 +170,9 @@ class OmniClient:
         """
         try:
             filter_str = f'userName eq "{query}"'
-            response = requests.get(
-                f"{self.base_url}/scim/v2/users",
-                headers=self.headers,
-                params={"filter": filter_str}
-            )
-            response.raise_for_status()
-            return response.json().get('Resources', [])
+            endpoint = f'/scim/v2/users?filter={requests.utils.quote(filter_str)}'
+            response = self._make_request('GET', endpoint)
+            return response.get('Resources', [])
         except Exception as e:
             print(f"\n❌ Error searching users with query '{query}': {str(e)}")
             return []
