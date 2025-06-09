@@ -147,3 +147,14 @@ class OmniClient:
         except Exception as e:
             print(f"\n❌ Error updating members for group {group_name}: {str(e)}")
             return False
+
+    def get_user_by_id(self, user_id: Optional[str] = None) -> Union[Dict[str, Any], List[Dict[str, Any]], None]:
+        """Get a user by ID, or all users if no ID is provided."""
+        if not user_id:
+            return self.get_users()
+        try:
+            response = self._make_request('GET', f'/scim/v2/users/{user_id}')
+            return response
+        except Exception as e:
+            print(f"\n❌ Error getting user by ID {user_id}: {str(e)}")
+            return None

@@ -19,12 +19,38 @@ OMNI_API_KEY=your_omni_api_key
 
 ## Usage
 
-The package provides a command-line interface for syncing users, their group memberships, and attributes:
+The package uses a subcommand-based CLI structure for all major operations. Example usage:
 
-```bash
-# Show available commands and options
-omni-user-manager --help
-```
+### Common Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `sync` | Synchronize users, groups, and attributes | `omni-user-manager sync --source csv --users data/users.csv --groups data/groups.csv` |
+| `get-user-by-id [USER_ID]` | Get a user by ID (or all users if no ID) | `omni-user-manager get-user-by-id` |
+| `search-users --query QUERY` | Search users by query string | `omni-user-manager search-users --query "alice"` |
+| `get-user-attributes USER_ID` | Get a user's custom attributes | `omni-user-manager get-user-attributes 123` |
+| `get-group-by-id [GROUP_ID]` | Get a group by ID (or all groups if no ID) | `omni-user-manager get-group-by-id` |
+| `search-groups --query QUERY` | Search groups by query string | `omni-user-manager search-groups --query "dev"` |
+| `get-group-members GROUP_ID` | Get all members of a group | `omni-user-manager get-group-members 456` |
+| `bulk-create-users USERS_FILE` | Create multiple users from a file | `omni-user-manager bulk-create-users data/users.json` |
+| `bulk-update-users USERS_FILE` | Update multiple users from a file | `omni-user-manager bulk-update-users data/users.json` |
+| `export-users-json` | Export all users as JSON | `omni-user-manager export-users-json` |
+| `export-groups-json` | Export all groups as JSON | `omni-user-manager export-groups-json` |
+| `get-user-history USER_ID` | Get history of changes for a user | `omni-user-manager get-user-history 123` |
+| `get-group-history GROUP_ID` | Get history of changes for a group | `omni-user-manager get-group-history 456` |
+
+> **Migration Note:**
+> The CLI previously used top-level arguments (e.g., `--get-user-by-id`, `--source`, etc.).
+> Now, you must specify a subcommand as the first argument. See the table below for how to update your usage:
+>
+> | Old Command Example                                 | New Command Example                                 |
+> |-----------------------------------------------------|-----------------------------------------------------|
+> | `omni-user-manager --get-user-by-id`                | `omni-user-manager get-user-by-id`                  |
+> | `omni-user-manager --get-user-by-id USER_ID`        | `omni-user-manager get-user-by-id USER_ID`          |
+> | `omni-user-manager --source json --users file.json` | `omni-user-manager sync --source json --users file.json` |
+> | `omni-user-manager --source csv ...`                | `omni-user-manager sync --source csv ...`           |
+>
+> All other operations (search, export, bulk, etc.) are now subcommands as well. Run `omni-user-manager --help` for a full list.
 
 ### Sync Modes
 
@@ -86,13 +112,13 @@ Use this when your user data and group memberships are in separate CSV files:
 
 ```bash
 # Full sync (groups and attributes)
-omni-user-manager --source csv --users data/users.csv --groups data/groups.csv
+omni-user-manager sync --source csv --users data/users.csv --groups data/groups.csv
 
 # Groups-only sync
-omni-user-manager --source csv --users data/users.csv --groups data/groups.csv --mode groups
+omni-user-manager sync --source csv --users data/users.csv --groups data/groups.csv --mode groups
 
 # Attributes-only sync
-omni-user-manager --source csv --users data/users.csv --groups data/groups.csv --mode attributes
+omni-user-manager sync --source csv --users data/users.csv --groups data/groups.csv --mode attributes
 ```
 
 Example CSV formats:

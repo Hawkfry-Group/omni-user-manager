@@ -36,3 +36,7 @@ class OmniAPI:
     def update_group(self, group_data: dict) -> dict:
         """Update a group's attributes and members"""
         return self.client.update_group(group_data)
+    
+    def get_user_by_id(self, user_id: str = None):
+        """Get a user by ID, or all users if no ID is provided."""
+        return self.client.get_user_by_id(user_id)
