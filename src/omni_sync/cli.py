@@ -30,6 +30,7 @@ Data Sources:
 
 import argparse
 import sys
+import os
 from typing import Optional
 try:
     from dotenv import load_dotenv
@@ -42,7 +43,6 @@ except ModuleNotFoundError:
     print("  pip install omni-user-manager  (or pip install --upgrade omni-user-manager)")
     print("  Alternatively, to install only python-dotenv: pip install python-dotenv")
     sys.exit(1)
-import os
 from pathlib import Path
 import dotenv # For find_dotenv
 
@@ -57,6 +57,7 @@ def main() -> int:
         description='Omni User Manager - Synchronize users, groups, and attributes with Omni',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
+    parser.add_argument('--debug-env', action='store_true', help='Enable debug print statements for .env loading (applies to all commands)')
     subparsers = parser.add_subparsers(dest='command', required=True)
 
     # Sync subcommand
@@ -125,6 +126,56 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    # --- .env loading logic (applies to all commands) ---
+    debug_env = getattr(args, 'debug_env', False)
+    env_file_path_found = dotenv.find_dotenv(usecwd=True)
+    if debug_env:
+        print(f"DEBUG: dotenv.find_dotenv(usecwd=True) result: '{env_file_path_found}'")
+    loaded_dotenv = load_dotenv(verbose=debug_env, override=True)
+    if debug_env:
+        print(f"DEBUG: load_dotenv(verbose={debug_env}) result: {loaded_dotenv}")
+    if not loaded_dotenv or not os.getenv('OMNI_BASE_URL') or not os.getenv('OMNI_API_KEY'):
+        if debug_env:
+            print("DEBUG: load_dotenv failed or variables not set, attempting manual parse...")
+        if env_file_path_found and os.path.exists(env_file_path_found):
+            try:
+                with open(env_file_path_found, 'r') as f:
+                    for line_number, line in enumerate(f):
+                        line = line.strip()
+                        if not line or line.startswith('#') or '=' not in line:
+                            continue
+                        key, value = line.split('=', 1)
+                        key = key.strip()
+                        if len(value) >= 2 and ((value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'"))):
+                            value = value[1:-1]
+                        os.environ[key] = value
+                        if debug_env:
+                            print(f"DEBUG: Manually set os.environ['{key}'] = '{value}'")
+                if os.getenv('OMNI_BASE_URL') and os.getenv('OMNI_API_KEY'):
+                    if debug_env:
+                        print("DEBUG: Variables successfully set by manual parse.")
+                elif debug_env:
+                    print("DEBUG: Variables NOT set even after manual parse.")
+            except Exception as e:
+                if debug_env:
+                    print(f"DEBUG: Manual parse FAILED: {e}")
+        elif debug_env:
+            print("DEBUG: .env file not found by find_dotenv for manual parse, or path doesn't exist.")
+    # --- End .env loading logic ---
+    
+    # For commands that require API access, check env vars before proceeding
+    api_required_commands = [
+        'get-user-by-id', 'search-users', 'get-user-attributes', 'get-group-by-id', 'search-groups', 'get-group-members',
+        'bulk-create-users', 'bulk-update-users', 'delete-user', 'bulk-delete-users',
+        'export-users-csv', 'export-groups-json', 'export-users-json', 'sync'
+    ]
+    if args.command in api_required_commands:
+        base_url = os.getenv('OMNI_BASE_URL')
+        api_key = os.getenv('OMNI_API_KEY')
+        if not base_url or not api_key:
+            print("Error: OMNI_BASE_URL and OMNI_API_KEY must be set in .env file or environment.")
+            return 1
+
     # Handle subcommands
     if args.command == 'get-user-by-id':
         from .api import OmniAPI
@@ -148,56 +199,6 @@ def main() -> int:
         print(json.dumps(result, indent=2))
         return 0
     elif args.command == 'sync':
-        # --- Manual .env read test (conditional) ---
-        if args.debug:
-            print(f"DEBUG: Current working directory: {os.getcwd()}")
-            print("DEBUG: Attempting manual read of .env file...")
-            manual_env_path = os.path.join(os.getcwd(), ".env")
-            try:
-                with open(manual_env_path, 'r') as f:
-                    lines = [f.readline().strip() for _ in range(2)] # Read first 2 lines
-                    print(f"DEBUG: Manual read SUCCESS. First 2 lines: {lines}")
-            except Exception as e:
-                print(f"DEBUG: Manual read FAILED: {e}")
-        # --- End manual .env read test ---
-        env_file_path_found = dotenv.find_dotenv(usecwd=True) 
-        if args.debug:
-            print(f"DEBUG: dotenv.find_dotenv(usecwd=True) result: '{env_file_path_found}'")
-        loaded_dotenv = load_dotenv(verbose=args.debug, override=True) 
-        if args.debug:
-            print(f"DEBUG: load_dotenv(verbose={args.debug}) result: {loaded_dotenv}") 
-        if not loaded_dotenv or not os.getenv('OMNI_BASE_URL') or not os.getenv('OMNI_API_KEY'):
-            if args.debug:
-                print("DEBUG: load_dotenv failed or variables not set, attempting manual parse...")
-            if env_file_path_found and os.path.exists(env_file_path_found):
-                try:
-                    with open(env_file_path_found, 'r') as f:
-                        for line_number, line in enumerate(f):
-                            line = line.strip()
-                            if not line or line.startswith('#') or '=' not in line:
-                                continue
-                            key, value = line.split('=', 1)
-                            key = key.strip()
-                            if len(value) >= 2 and ((value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'"))):
-                                value = value[1:-1]
-                            os.environ[key] = value
-                            if args.debug:
-                                print(f"DEBUG: Manually set os.environ['{key}'] = '{value}'")
-                    if os.getenv('OMNI_BASE_URL') and os.getenv('OMNI_API_KEY'):
-                        if args.debug:
-                            print("DEBUG: Variables successfully set by manual parse.")
-                    elif args.debug: # only print if debug is on and variables still not set
-                        print("DEBUG: Variables NOT set even after manual parse.")        
-                except Exception as e:
-                    if args.debug:
-                        print(f"DEBUG: Manual parse FAILED: {e}")
-            elif args.debug: # only print if debug is on and file not found for manual parse
-                print("DEBUG: .env file not found by find_dotenv for manual parse, or path doesn't exist.")
-        base_url = os.getenv('OMNI_BASE_URL')
-        api_key = os.getenv('OMNI_API_KEY')
-        if not base_url or not api_key:
-            print("Error: OMNI_BASE_URL and OMNI_API_KEY must be set in .env file")
-            return 1
         omni_client = OmniClient(base_url, api_key)
         if args.source == 'csv':
             if not args.groups:
@@ -245,7 +246,7 @@ def main() -> int:
         return 0
     elif args.command == 'bulk-create-users':
         from .api import OmniAPI
-        import os, json
+        import json
         api = OmniAPI()
         # Determine file type by extension
         if args.users_file.endswith('.json'):
@@ -268,7 +269,7 @@ def main() -> int:
         return 0
     elif args.command == 'bulk-update-users':
         from .api import OmniAPI
-        import os, json
+        import json
         api = OmniAPI()
         # Determine file type by extension
         if args.users_file.endswith('.json'):
@@ -306,7 +307,7 @@ def main() -> int:
         return 0
     elif args.command == 'bulk-delete-users':
         from .api import OmniAPI
-        import os, json
+        import json
         api = OmniAPI()
         user_ids = []
         if args.user_ids_file.endswith('.json'):
