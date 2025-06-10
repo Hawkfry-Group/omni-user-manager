@@ -129,7 +129,10 @@ def main():
     args = parser.parse_args()
     
     # Load environment variables (.env file overrides global environment variables)
-    load_dotenv(override=True)
+    # Use find_dotenv to ensure we load from current working directory
+    from dotenv import find_dotenv
+    env_file = find_dotenv(usecwd=True)
+    load_dotenv(env_file, override=True)
     
     try:
         # Check required files exist

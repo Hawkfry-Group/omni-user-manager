@@ -131,7 +131,7 @@ def main() -> int:
     env_file_path_found = dotenv.find_dotenv(usecwd=True)
     if debug_env:
         print(f"DEBUG: dotenv.find_dotenv(usecwd=True) result: '{env_file_path_found}'")
-    loaded_dotenv = load_dotenv(verbose=debug_env, override=True)
+    loaded_dotenv = load_dotenv(env_file_path_found, verbose=debug_env, override=True)
     if debug_env:
         print(f"DEBUG: load_dotenv(verbose={debug_env}, override=True) result: {loaded_dotenv}")
         print(f"DEBUG: This allows .env file values to override global environment variables")
