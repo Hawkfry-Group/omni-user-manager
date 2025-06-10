@@ -17,6 +17,13 @@ OMNI_BASE_URL=your_omni_base_url/api
 OMNI_API_KEY=your_omni_api_key
 ```
 
+### Environment Variables Priority
+
+The package prioritizes `.env` file values over global environment variables:
+
+1. **.env file values** (highest priority)
+2. **Global/System Environment Variables** (fallback when .env file doesn't exist or values are not set)
+
 ## Usage
 
 You can use either `omni-um` or `omni-user-manager` as the CLI command. All examples below use `omni-um` for brevity, but both commands are fully supported and interchangeable.

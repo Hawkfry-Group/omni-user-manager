@@ -133,7 +133,8 @@ def main() -> int:
         print(f"DEBUG: dotenv.find_dotenv(usecwd=True) result: '{env_file_path_found}'")
     loaded_dotenv = load_dotenv(verbose=debug_env, override=True)
     if debug_env:
-        print(f"DEBUG: load_dotenv(verbose={debug_env}) result: {loaded_dotenv}")
+        print(f"DEBUG: load_dotenv(verbose={debug_env}, override=True) result: {loaded_dotenv}")
+        print(f"DEBUG: This allows .env file values to override global environment variables")
     if not loaded_dotenv or not os.getenv('OMNI_BASE_URL') or not os.getenv('OMNI_API_KEY'):
         if debug_env:
             print("DEBUG: load_dotenv failed or variables not set, attempting manual parse...")

@@ -128,8 +128,8 @@ def main():
                        help='Data source to use (csv or json)')
     args = parser.parse_args()
     
-    # Load environment variables
-    load_dotenv()
+    # Load environment variables (.env file overrides global environment variables)
+    load_dotenv(override=True)
     
     try:
         # Check required files exist
