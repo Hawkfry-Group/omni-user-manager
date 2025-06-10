@@ -13,7 +13,7 @@ pip install omni-user-manager
 Create a `.env` file with your Omni API credentials:
 
 ```env
-OMNI_BASE_URL=your_omni_base_url
+OMNI_BASE_URL=your_omni_base_url/api
 OMNI_API_KEY=your_omni_api_key
 ```
 
