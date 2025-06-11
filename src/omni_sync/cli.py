@@ -287,7 +287,27 @@ def main() -> int:
         else:
             print("Unsupported file type. Please provide a .json or .csv file.")
             return 1
-        result = api.bulk_update_users(users)
+        # Ensure each user has 'id' and 'urn:omni:params:1.0:UserAttribute'
+        processed_users = []
+        for user in users:
+            # If 'id' is missing, try to fetch by userName
+            if 'id' not in user or not user['id']:
+                userName = user.get('userName')
+                if not userName:
+                    print(f"Skipping user missing both 'id' and 'userName': {user}")
+                    continue
+                omni_user = api.search_users(userName)
+                if omni_user and isinstance(omni_user, list) and len(omni_user) > 0:
+                    user['id'] = omni_user[0].get('id')
+                else:
+                    print(f"Could not find user in Omni for userName '{userName}', skipping.")
+                    continue
+            # Only keep id and custom attributes
+            processed_users.append({
+                'id': user['id'],
+                'urn:omni:params:1.0:UserAttribute': user.get('urn:omni:params:1.0:UserAttribute', {})
+            })
+        result = api.bulk_patch_user_attributes(processed_users)
         print(json.dumps(result, indent=2))
         print(f"\nSummary: {len(result['success'])} succeeded, {len(result['failure'])} failed.")
         return 0
