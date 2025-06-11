@@ -107,3 +107,7 @@ class OmniAPI:
     def export_groups_json(self, file_path: str) -> None:
         """Export all groups to a JSON file at the given path."""
         return self.client.export_groups_json(file_path)
+    
+    def export_users_json(self, file_path: str) -> None:
+        """Export all users to a JSON file in SCIM 2.0 format."""
+        return self.client.export_users_json(file_path)
