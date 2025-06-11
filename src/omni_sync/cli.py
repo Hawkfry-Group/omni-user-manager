@@ -93,12 +93,12 @@ def main() -> int:
     get_group_members_parser = subparsers.add_parser('get-group-members', help='Get all members of a group')
     get_group_members_parser.add_argument('group_id', help='Group ID')
 
-    # Bulk Operations subcommands
-    bulk_create_users_parser = subparsers.add_parser('bulk-create-users', help='Create multiple users in a single request')
-    bulk_create_users_parser.add_argument('users_file', help='Path to users file (JSON or CSV)')
+    # User Management Operations subcommands
+    create_users_parser = subparsers.add_parser('create-users', help='Create multiple users from a file')
+    create_users_parser.add_argument('users_file', help='Path to users file (JSON or CSV)')
 
-    bulk_update_users_parser = subparsers.add_parser('bulk-update-users', help='Update multiple users in a single request')
-    bulk_update_users_parser.add_argument('users_file', help='Path to users file (JSON or CSV)')
+    update_user_attributes_parser = subparsers.add_parser('update-user-attributes', help='Update user attributes only (not group memberships)')
+    update_user_attributes_parser.add_argument('users_file', help='Path to users file (JSON or CSV)')
 
     # Export/Import subcommands
     export_users_json_parser = subparsers.add_parser('export-users-json', help='Export all users as JSON')
@@ -120,9 +120,9 @@ def main() -> int:
     delete_user_parser.add_argument('user_id', help='User ID to delete')
     delete_user_parser.add_argument('--yes', action='store_true', help='Confirm deletion without prompting')
 
-    bulk_delete_users_parser = subparsers.add_parser('bulk-delete-users', help='Delete multiple users by IDs from a file (JSON or CSV)')
-    bulk_delete_users_parser.add_argument('user_ids_file', help='Path to file containing user IDs (JSON array or CSV with id column)')
-    bulk_delete_users_parser.add_argument('--yes', action='store_true', help='Confirm deletion without prompting')
+    delete_users_parser = subparsers.add_parser('delete-users', help='Delete multiple users by IDs from a file (JSON or CSV)')
+    delete_users_parser.add_argument('user_ids_file', help='Path to file containing user IDs (JSON array or CSV with id column)')
+    delete_users_parser.add_argument('--yes', action='store_true', help='Confirm deletion without prompting')
 
     args = parser.parse_args()
 
@@ -167,7 +167,7 @@ def main() -> int:
     # For commands that require API access, check env vars before proceeding
     api_required_commands = [
         'get-user-by-id', 'search-users', 'get-user-attributes', 'get-group-by-id', 'search-groups', 'get-group-members',
-        'bulk-create-users', 'bulk-update-users', 'delete-user', 'bulk-delete-users',
+        'create-users', 'update-user-attributes', 'delete-user', 'delete-users',
         'export-users-csv', 'export-groups-json', 'export-users-json', 'sync'
     ]
     if args.command in api_required_commands:
@@ -245,7 +245,7 @@ def main() -> int:
         import json
         print(json.dumps(result, indent=2))
         return 0
-    elif args.command == 'bulk-create-users':
+    elif args.command == 'create-users':
         from .api import OmniAPI
         import json
         api = OmniAPI()
@@ -268,7 +268,7 @@ def main() -> int:
         print(json.dumps(result, indent=2))
         print(f"\nSummary: {len(result['success'])} succeeded, {len(result['failure'])} failed, {len(result['skipped'])} skipped (already exists).")
         return 0
-    elif args.command == 'bulk-update-users':
+    elif args.command == 'update-user-attributes':
         from .api import OmniAPI
         import json
         api = OmniAPI()
@@ -287,7 +287,27 @@ def main() -> int:
         else:
             print("Unsupported file type. Please provide a .json or .csv file.")
             return 1
-        result = api.bulk_update_users(users)
+        # Ensure each user has 'id' and 'urn:omni:params:1.0:UserAttribute'
+        processed_users = []
+        for user in users:
+            # If 'id' is missing, try to fetch by userName
+            if 'id' not in user or not user['id']:
+                userName = user.get('userName')
+                if not userName:
+                    print(f"Skipping user missing both 'id' and 'userName': {user}")
+                    continue
+                omni_user = api.search_users(userName)
+                if omni_user and isinstance(omni_user, list) and len(omni_user) > 0:
+                    user['id'] = omni_user[0].get('id')
+                else:
+                    print(f"Could not find user in Omni for userName '{userName}', skipping.")
+                    continue
+            # Only keep id and custom attributes
+            processed_users.append({
+                'id': user['id'],
+                'urn:omni:params:1.0:UserAttribute': user.get('urn:omni:params:1.0:UserAttribute', {})
+            })
+        result = api.bulk_patch_user_attributes(processed_users)
         print(json.dumps(result, indent=2))
         print(f"\nSummary: {len(result['success'])} succeeded, {len(result['failure'])} failed.")
         return 0
@@ -306,7 +326,7 @@ def main() -> int:
         except Exception as e:
             print(f"❌ Failed to delete user '{user_id}': {e}")
         return 0
-    elif args.command == 'bulk-delete-users':
+    elif args.command == 'delete-users':
         from .api import OmniAPI
         import json
         api = OmniAPI()
@@ -352,11 +372,8 @@ def main() -> int:
     elif args.command == 'export-users-json':
         from .api import OmniAPI
         api = OmniAPI()
-        users = api.get_users()
-        import json
-        with open(args.output_file, 'w', encoding='utf-8') as f:
-            json.dump(users, f, indent=2)
-        print(f"✅ Exported all users to JSON: {args.output_file}")
+        api.export_users_json(args.output_file)
+        print(f"✅ Exported all users to JSON in SCIM 2.0 format: {args.output_file}")
         return 0
     elif args.command == 'get-user-history':
         print("User history (audit) is not available via this CLI. Please refer to the Omni platform's audit logs or logging dashboard.")

@@ -310,3 +310,19 @@ class OmniClient:
         groups = self.get_groups()
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(groups, f, indent=2)
+    
+    def export_users_json(self, file_path: str) -> None:
+        """Export all users to a JSON file in SCIM 2.0 format."""
+        users = self.get_users()
+        
+        # Create SCIM 2.0 format structure
+        scim_export = {
+            "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+            "totalResults": len(users),
+            "startIndex": 1,
+            "itemsPerPage": len(users),
+            "Resources": users
+        }
+        
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(scim_export, f, indent=2)

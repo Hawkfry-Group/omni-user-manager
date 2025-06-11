@@ -107,3 +107,38 @@ class OmniAPI:
     def export_groups_json(self, file_path: str) -> None:
         """Export all groups to a JSON file at the given path."""
         return self.client.export_groups_json(file_path)
+    
+    def export_users_json(self, file_path: str) -> None:
+        """Export all users to a JSON file in SCIM 2.0 format."""
+        return self.client.export_users_json(file_path)
+    
+    def bulk_patch_user_attributes(self, users: list) -> dict:
+        """
+        Patch user attributes for multiple users (one by one) using SCIM PATCH.
+        Only updates custom attributes, not group memberships.
+        Expects each user dict to have 'id' and 'urn:omni:params:1.0:UserAttribute'.
+        Returns a summary with lists of successes and failures.
+        """
+        results = {"success": [], "failure": []}
+        for user in users:
+            user_id = user.get("id")
+            attrs = user.get("urn:omni:params:1.0:UserAttribute")
+            if not user_id or attrs is None:
+                results["failure"].append({"user": user, "error": "Missing 'id' or 'urn:omni:params:1.0:UserAttribute' in user data"})
+                continue
+            patch_data = {
+                "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+                "Operations": [
+                    {
+                        "op": "replace",
+                        "path": "urn:omni:params:1.0:UserAttribute",
+                        "value": attrs
+                    }
+                ]
+            }
+            try:
+                updated = self.patch_user(user_id, patch_data)
+                results["success"].append(updated)
+            except Exception as e:
+                results["failure"].append({"user": user, "error": str(e)})
+        return results

@@ -4,9 +4,7 @@ from typing import List, Dict, Any
 from .base import DataSource
 from .csv_source import CSVDataSource
 from .json_source import JSONDataSource
-from .google_sheets_source import GoogleSheetsDataSource
-
-__all__ = ['DataSource', 'CSVDataSource', 'JSONDataSource', 'GoogleSheetsDataSource']
+__all__ = ['DataSource', 'CSVDataSource', 'JSONDataSource']
 
 class BaseDataSource:
     """Base class for data sources"""
