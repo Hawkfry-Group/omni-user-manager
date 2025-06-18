@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="omni-user-manager",
-    version="0.1.3",
+    version="0.2.0",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     install_requires=[
@@ -15,7 +15,7 @@ setup(
             "omni-um=omni_sync.cli:main",
         ],
     },
-    python_requires=">=3.7",
+    python_requires=">=3.9",
     author="Jamie Fry",
     author_email="jamie@hawkfry.com",
     description="Omni User Manager - Sync users and groups with Omni",
@@ -23,12 +23,13 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Hawkfry-Group/omni-user-manager",
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
 ) 
