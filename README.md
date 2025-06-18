@@ -49,19 +49,6 @@ The package uses a subcommand-based CLI structure for all major operations. Exam
 | `export-users-csv OUTPUT_FILE` | Export all users as CSV (id, userName, displayName, active, email) | `omni-um export-users-csv all_users.csv` |
 | `export-groups-json OUTPUT_FILE` | Export all groups as JSON | `omni-um export-groups-json all_groups.json` |
 
-> **Migration Note:**
-> The CLI previously used top-level arguments (e.g., `--get-user-by-id`, `--source`, etc.).
-> Now, you must specify a subcommand as the first argument. See the table below for how to update your usage:
->
-> | Old Command Example                                 | New Command Example                                 |
-> |-----------------------------------------------------|-----------------------------------------------------|
-> | `omni-user-manager --get-user-by-id`                | `omni-user-manager get-user-by-id`                  |
-> | `omni-user-manager --get-user-by-id USER_ID`        | `omni-user-manager get-user-by-id USER_ID`          |
-> | `omni-user-manager --source json --users file.json` | `omni-user-manager sync --source json --users file.json` |
-> | `omni-user-manager --source csv ...`                | `omni-user-manager sync --source csv ...`           |
->
-> All other operations (search, export, bulk, etc.) are now subcommands as well. Run `omni-user-manager --help` for a full list.
-
 ### User Operations vs Sync
 
 **User Operations** (`create-users`, `update-user-attributes`, `delete-users`):
