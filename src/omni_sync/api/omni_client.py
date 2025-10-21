@@ -37,7 +37,65 @@ class OmniClient:
                 print(f"Response Status Code: {e.response.status_code}")
                 print(f"Response Text: {e.response.text}")
             raise
-    
+
+    def _paginated_request(self, endpoint: str, count: int = 100) -> List[Dict[str, Any]]:
+        """
+        Make paginated requests to the Omni SCIM API.
+
+        SCIM 2.0 pagination uses:
+        - startIndex: 1-based index of first result (default: 1)
+        - count: max number of results per page (default: 100)
+
+        Response includes:
+        - totalResults: total number of resources
+        - startIndex: starting index of current page
+        - itemsPerPage: number of results in current page
+        - Resources: array of resources
+
+        Args:
+            endpoint: API endpoint to request (e.g., '/scim/v2/users')
+            count: Number of results per page (default: 100)
+
+        Returns:
+            List of all resources across all pages
+        """
+        all_resources = []
+        start_index = 1
+
+        while True:
+            # Build URL with pagination parameters
+            separator = '&' if '?' in endpoint else '?'
+            paginated_url = f"{endpoint}{separator}startIndex={start_index}&count={count}"
+
+            try:
+                response = self._make_request('GET', paginated_url)
+
+                # Extract resources from this page
+                resources = response.get('Resources', [])
+                all_resources.extend(resources)
+
+                # Check if we need to fetch more pages
+                total_results = response.get('totalResults', 0)
+                items_per_page = response.get('itemsPerPage', len(resources))
+
+                # If we've fetched all results, stop
+                if len(all_resources) >= total_results:
+                    break
+
+                # Move to next page
+                start_index += items_per_page
+
+                # Safety check: if no resources returned, stop to avoid infinite loop
+                if items_per_page == 0:
+                    break
+
+            except Exception as e:
+                print(f"\n❌ Error during paginated request to {endpoint}: {str(e)}")
+                # Return what we've collected so far
+                break
+
+        return all_resources
+
     # User operations
     def create_user(self, user: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new user"""
@@ -78,10 +136,9 @@ class OmniClient:
             return None
     
     def get_users(self) -> List[Dict[str, Any]]:
-        """Get all users"""
+        """Get all users (with automatic pagination)"""
         try:
-            response = self._make_request('GET', '/scim/v2/users')
-            return response.get('Resources', [])
+            return self._paginated_request('/scim/v2/users')
         except Exception as e:
             print(f"\n❌ Error getting users: {str(e)}")
             return []
@@ -127,10 +184,9 @@ class OmniClient:
         self._make_request('DELETE', f'/scim/v2/groups/{group_id}')
     
     def get_groups(self) -> List[Dict[str, Any]]:
-        """Get all groups"""
+        """Get all groups (with automatic pagination)"""
         try:
-            response = self._make_request('GET', '/scim/v2/groups')
-            return response.get('Resources', [])
+            return self._paginated_request('/scim/v2/groups')
         except Exception as e:
             print(f"\n❌ Error getting groups: {str(e)}")
             return []
@@ -172,8 +228,7 @@ class OmniClient:
         try:
             filter_str = f'userName eq "{query}"'
             endpoint = f'/scim/v2/users?filter={requests.utils.quote(filter_str)}'
-            response = self._make_request('GET', endpoint)
-            return response.get('Resources', [])
+            return self._paginated_request(endpoint)
         except Exception as e:
             print(f"\n❌ Error searching users with query '{query}': {str(e)}")
             return []
@@ -214,10 +269,8 @@ class OmniClient:
         """
         try:
             filter_str = f'displayName eq "{query}"'
-            # _make_request does not support query params, so add support here
             endpoint = f'/scim/v2/groups?filter={requests.utils.quote(filter_str)}'
-            response = self._make_request('GET', endpoint)
-            return response.get('Resources', [])
+            return self._paginated_request(endpoint)
         except Exception as e:
             print(f"\n❌ Error searching groups with query '{query}': {str(e)}")
             return []
