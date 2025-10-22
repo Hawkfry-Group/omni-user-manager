@@ -3,6 +3,7 @@ from typing import List, Optional, Union, Dict, Any
 import json
 from ..models import User, Group
 import csv
+import time
 
 class OmniClient:
     """Client for interacting with the Omni API"""
@@ -88,6 +89,9 @@ class OmniClient:
                 # Safety check: if no resources returned, stop to avoid infinite loop
                 if items_per_page == 0:
                     break
+
+                # Add delay between pagination requests to avoid rate limiting
+                time.sleep(0.5)
 
             except Exception as e:
                 print(f"\n❌ Error during paginated request to {endpoint}: {str(e)}")

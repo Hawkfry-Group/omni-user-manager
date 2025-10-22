@@ -70,7 +70,9 @@ def main() -> int:
                             help='Path to groups CSV file (required for CSV source)')
     sync_parser.add_argument('--mode', choices=['all', 'groups', 'attributes'], default='all',
                             help='Sync mode: all (default) syncs both groups and attributes, groups-only, or attributes-only')
-    sync_parser.add_argument('--debug', action='store_true', 
+    sync_parser.add_argument('--dry-run', action='store_true',
+                            help='Show what changes would be made without actually making them')
+    sync_parser.add_argument('--debug', action='store_true',
                             help='Enable debug print statements for .env loading')
 
     # User Management subcommands
@@ -213,7 +215,9 @@ def main() -> int:
         else:
             print("Error: Invalid source type")
             return 1
-        sync = OmniSync(data_source, omni_client)
+        sync = OmniSync(data_source, omni_client, dry_run=args.dry_run)
+        if args.dry_run:
+            print("🔍 DRY RUN MODE - No changes will be made")
         if args.mode == 'all':
             print("🔄 Running full sync (groups and attributes)")
             results = sync.sync_all()

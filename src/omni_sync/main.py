@@ -2,16 +2,18 @@ from typing import List, Dict, Any
 from .api.omni_client import OmniClient
 from .data_sources.base import DataSource
 # These specific imports might not be needed anymore directly here
-# from .data_sources.csv_source import CSVDataSource 
+# from .data_sources.csv_source import CSVDataSource
 # from .data_sources.json_source import JSONDataSource
 import json
+import time
 
 class OmniSync:
     """Main class for synchronizing data between a data source and Omni"""
 
-    def __init__(self, data_source: DataSource, omni_client: OmniClient):
+    def __init__(self, data_source: DataSource, omni_client: OmniClient, dry_run: bool = False):
         self.data_source = data_source
         self.omni_client = omni_client
+        self.dry_run = dry_run
 
     def _fetch_data(self, fetch_func, description: str):
         """Helper function to fetch data and handle errors."""
@@ -78,9 +80,13 @@ class OmniSync:
                     }
                     try:
                         results['attempted'] += 1
-                        self.omni_client.update_group(update_data)
-                        print(f"    ✅ Successfully updated group: {group_name}")
-                        results['succeeded'] += 1
+                        if self.dry_run:
+                            print(f"    🔍 [DRY RUN] Would update group: {group_name}")
+                            results['succeeded'] += 1
+                        else:
+                            self.omni_client.update_group(update_data)
+                            print(f"    ✅ Successfully updated group: {group_name}")
+                            results['succeeded'] += 1
                     except Exception as e:
                         print(f"    ❌ Failed to update group {group_name}: {str(e)}")
                         if hasattr(e, 'response') and e.response is not None:
@@ -115,9 +121,13 @@ class OmniSync:
                     }
                     try:
                         results['attempted'] += 1
-                        self.omni_client.update_group(update_data)
-                        print(f"    ✅ Successfully updated group: {group_name}")
-                        results['succeeded'] += 1
+                        if self.dry_run:
+                            print(f"    🔍 [DRY RUN] Would update group: {group_name}")
+                            results['succeeded'] += 1
+                        else:
+                            self.omni_client.update_group(update_data)
+                            print(f"    ✅ Successfully updated group: {group_name}")
+                            results['succeeded'] += 1
                     except Exception as e:
                         print(f"    ❌ Failed to update group {group_name}: {str(e)}")
                         if hasattr(e, 'response') and e.response is not None:
@@ -143,11 +153,11 @@ class OmniSync:
             
             try:
                 results['attempted'] += 1
-                
+
                 # Filter out null values from desired attributes
                 filtered_attrs = {k: v for k, v in desired_attrs.items() if v is not None}
                 print(f"  Filtered attributes: {json.dumps(filtered_attrs, indent=2)}")
-                
+
                 # Create the update data with the filtered attributes
                 update_data = {
                     "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
@@ -156,11 +166,16 @@ class OmniSync:
                     "displayName": current_user['displayName'],
                     "urn:omni:params:1.0:UserAttribute": filtered_attrs
                 }
-                
-                print(f"  Sending update data: {json.dumps(update_data, indent=2)}")
-                self.omni_client.update_user(update_data)
-                print(f"    ✅ Successfully updated attributes")
-                results['succeeded'] += 1
+
+                if self.dry_run:
+                    print(f"  🔍 [DRY RUN] Would send update data: {json.dumps(update_data, indent=2)}")
+                    print(f"    🔍 [DRY RUN] Would update attributes")
+                    results['succeeded'] += 1
+                else:
+                    print(f"  Sending update data: {json.dumps(update_data, indent=2)}")
+                    self.omni_client.update_user(update_data)
+                    print(f"    ✅ Successfully updated attributes")
+                    results['succeeded'] += 1
             except Exception as e:
                 print(f"    ❌ Failed to update attributes: {str(e)}")
                 if hasattr(e, 'response') and e.response is not None:
@@ -178,6 +193,13 @@ class OmniSync:
             return error_result
         group_map = {group['id']: group for group in omni_groups}
 
+        # Fetch all users from Omni once and cache them
+        omni_users = self._fetch_data(self.omni_client.get_users, "users from Omni")
+        if omni_users is None:
+            print("\n❌ Failed to fetch users from Omni. Cannot proceed with sync.")
+            return error_result
+        omni_user_map = {user['userName']: user for user in omni_users}
+
         users = self._fetch_data(self.data_source.get_users, f"users from {type(self.data_source).__name__}")
         if users is None:
             print("\n❌ Failed to fetch users from data source. Cannot proceed with sync.")
@@ -190,7 +212,8 @@ class OmniSync:
                     print(f"\n⚠️ Skipping user record with missing 'userName': {user}")
                     continue
 
-                current_user = self.omni_client.get_user(user_name)
+                # Look up user from cache instead of API call
+                current_user = omni_user_map.get(user_name)
                 if not current_user:
                     print(f"\n⚠️ User not found in Omni: {user_name}")
                     continue
@@ -199,9 +222,14 @@ class OmniSync:
                 error_result['groups']['attempted'] += group_results['attempted']
                 error_result['groups']['succeeded'] += group_results['succeeded']
 
+                # Add delay to avoid rate limiting
+                time.sleep(0.2)
+
             except Exception as e:
                 user_name_for_error = user.get('userName', '[UNKNOWN USERNAME]')
                 print(f"\n❌ An unexpected error occurred processing user {user_name_for_error}: {str(e)}")
+                # Add delay even on error to avoid rate limiting
+                time.sleep(0.2)
                 continue
 
         print("\n📊 Groups Sync Summary:")
@@ -215,6 +243,13 @@ class OmniSync:
         """Synchronize only user attributes"""
         error_result = {'attributes': {'attempted': 0, 'succeeded': 0}}
 
+        # Fetch all users from Omni once and cache them
+        omni_users = self._fetch_data(self.omni_client.get_users, "users from Omni")
+        if omni_users is None:
+            print("\n❌ Failed to fetch users from Omni. Cannot proceed with sync.")
+            return error_result
+        omni_user_map = {user['userName']: user for user in omni_users}
+
         users = self._fetch_data(self.data_source.get_users, f"users from {type(self.data_source).__name__}")
         if users is None:
             print("\n❌ Failed to fetch users from data source. Cannot proceed with sync.")
@@ -227,7 +262,8 @@ class OmniSync:
                     print(f"\n⚠️ Skipping user record with missing 'userName': {user}")
                     continue
 
-                current_user = self.omni_client.get_user(user_name)
+                # Look up user from cache instead of API call
+                current_user = omni_user_map.get(user_name)
                 if not current_user:
                     print(f"\n⚠️ User not found in Omni: {user_name}")
                     continue
@@ -236,9 +272,14 @@ class OmniSync:
                 error_result['attributes']['attempted'] += attr_results['attempted']
                 error_result['attributes']['succeeded'] += attr_results['succeeded']
 
+                # Add delay to avoid rate limiting
+                time.sleep(0.2)
+
             except Exception as e:
                 user_name_for_error = user.get('userName', '[UNKNOWN USERNAME]')
                 print(f"\n❌ An unexpected error occurred processing user {user_name_for_error}: {str(e)}")
+                # Add delay even on error to avoid rate limiting
+                time.sleep(0.2)
                 continue
 
         print("\n📊 Attributes Sync Summary:")
