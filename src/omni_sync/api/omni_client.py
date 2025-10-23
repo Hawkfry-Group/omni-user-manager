@@ -147,23 +147,6 @@ class OmniClient:
             print(f"\n❌ Error getting users: {str(e)}")
             return []
     
-    def update_user_groups(self, user_id: str, username: str, groups: List[Dict[str, str]]) -> bool:
-        """Update a user's group memberships"""
-        try:
-            data = {
-                "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-                "Operations": [{
-                    "op": "replace",
-                    "path": "groups",
-                    "value": groups
-                }]
-            }
-            self._make_request('PATCH', f'/scim/v2/users/{user_id}', data)
-            return True
-        except Exception as e:
-            print(f"\n❌ Error updating groups for user {username}: {str(e)}")
-            return False
-    
     # Group operations
     def create_group(self, group: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new group"""
@@ -195,18 +178,25 @@ class OmniClient:
             print(f"\n❌ Error getting groups: {str(e)}")
             return []
     
-    def update_group_members(self, group_id: str, group_name: str, members: List[Dict[str, str]]) -> bool:
-        """Update a group's members list"""
+    def update_group_members(self, group_id: str, group_name: str, members: List[Dict[str, str]], display_name: str = None) -> bool:
+        """Update a group's members list using PUT
+
+        Args:
+            group_id: The group ID
+            group_name: The group name (for logging)
+            members: List of member dicts with 'value' field containing user IDs
+            display_name: Optional display name (if not provided, uses group_name)
+        """
         try:
-            data = {
-                "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
-                "Operations": [{
-                    "op": "replace",
-                    "path": "members",
-                    "value": members
-                }]
+            # Build minimal PUT request with just displayName and members
+            # (following the Omni documentation example)
+            group_data = {
+                "displayName": display_name or group_name,
+                "members": members
             }
-            self._make_request('PATCH', f'/scim/v2/groups/{group_id}', data)
+
+            # Use PUT to update the group
+            self._make_request('PUT', f'/scim/v2/groups/{group_id}', group_data)
             return True
         except Exception as e:
             print(f"\n❌ Error updating members for group {group_name}: {str(e)}")

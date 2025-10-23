@@ -130,9 +130,10 @@ class OmniAPI:
                 "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
                 "Operations": [
                     {
-                        "op": "replace",
-                        "path": "urn:omni:params:1.0:UserAttribute",
-                        "value": attrs
+                        "op": "Replace",
+                        "value": {
+                            "urn:omni:params:1.0:UserAttribute": attrs
+                        }
                     }
                 ]
             }

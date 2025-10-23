@@ -29,114 +29,6 @@ class OmniSync:
             print(f"\n❌ Error fetching {description}: {str(e)}")
             return None # Indicate failure
 
-    def _process_user_groups(self, user: Dict[str, Any], current_user: Dict[str, Any], group_map: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
-        """Process group updates for a single user"""
-        results = {'attempted': 0, 'succeeded': 0}
-        
-        # Extract current groups from Omni user data
-        current_groups = set()
-        for group in current_user.get('groups', []):
-            if isinstance(group, dict):
-                current_groups.add(group.get('value'))
-            else:
-                current_groups.add(group)
-        
-        # Get desired groups
-        omni_user_id = current_user.get('id')
-        if not omni_user_id:
-            print(f"\n⚠️ Skipping user {user.get('userName')} because Omni user data lacks an 'id'.")
-            return results
-            
-        desired_groups = self.data_source.get_desired_groups(user, omni_user_id)
-
-        # Check if updates are needed
-        if current_groups != desired_groups:
-            print(f"\n🔄 Updating groups for {user.get('userName')}")
-            print(f"  Current groups: {sorted(list(current_groups))}")
-            print(f"  Desired groups: {sorted(list(desired_groups))}")
-
-            groups_to_add = desired_groups - current_groups
-            groups_to_remove = current_groups - desired_groups
-
-            # Process removals first
-            for group_id in groups_to_remove:
-                if group_id not in group_map:
-                    print(f"  ⚠️ Cannot remove user from unknown/inaccessible group ID: {group_id}")
-                    continue
-
-                group = group_map[group_id]
-                group_name = group.get('displayName', group_id)
-                print(f"  ➖ Removing user from group: {group_name} ({group_id})")
-                
-                current_members = group.get('members', [])
-                updated_members = [m for m in current_members if m.get('value') != omni_user_id]
-
-                if len(updated_members) < len(current_members):
-                    update_data = {
-                        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
-                        "id": group_id,
-                        "displayName": group_name,
-                        "members": updated_members
-                    }
-                    try:
-                        results['attempted'] += 1
-                        if self.dry_run:
-                            print(f"    🔍 [DRY RUN] Would update group: {group_name}")
-                            results['succeeded'] += 1
-                        else:
-                            self.omni_client.update_group(update_data)
-                            print(f"    ✅ Successfully updated group: {group_name}")
-                            results['succeeded'] += 1
-                    except Exception as e:
-                        print(f"    ❌ Failed to update group {group_name}: {str(e)}")
-                        if hasattr(e, 'response') and e.response is not None:
-                            print(f"    Response: {e.response.text}")
-                else:
-                    print(f"    ℹ️ User {omni_user_id} was not found in current members list for group {group_name}. No removal needed.")
-                    
-            # Process additions
-            for group_id in groups_to_add:
-                if group_id not in group_map:
-                    print(f"  ⚠️ Cannot add user to unknown/inaccessible group ID: {group_id}")
-                    continue
-
-                group = group_map[group_id]
-                group_name = group.get('displayName', group_id)
-                print(f"  ➕ Adding user to group: {group_name} ({group_id})")
-                
-                current_members = group.get('members', [])
-                current_member_ids = {m.get('value') for m in current_members if isinstance(m, dict) and m.get('value')}
-                
-                if omni_user_id not in current_member_ids:
-                    updated_members = current_members + [{
-                        "display": user.get('userName'),
-                        "value": omni_user_id
-                    }]
-                    
-                    update_data = {
-                        "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
-                        "id": group_id,
-                        "displayName": group_name,
-                        "members": updated_members
-                    }
-                    try:
-                        results['attempted'] += 1
-                        if self.dry_run:
-                            print(f"    🔍 [DRY RUN] Would update group: {group_name}")
-                            results['succeeded'] += 1
-                        else:
-                            self.omni_client.update_group(update_data)
-                            print(f"    ✅ Successfully updated group: {group_name}")
-                            results['succeeded'] += 1
-                    except Exception as e:
-                        print(f"    ❌ Failed to update group {group_name}: {str(e)}")
-                        if hasattr(e, 'response') and e.response is not None:
-                            print(f"    Response: {e.response.text}")
-                else:
-                    print(f"    ℹ️ User {omni_user_id} is already in members list for group {group_name}. No addition needed.")
-        
-        return results
-
     def _process_user_attributes(self, user: Dict[str, Any], current_user: Dict[str, Any]) -> Dict[str, int]:
         """Process attribute updates for a single user"""
         results = {'attempted': 0, 'succeeded': 0}
@@ -184,59 +76,139 @@ class OmniSync:
         return results
 
     def sync_groups(self) -> Dict[str, Dict[str, int]]:
-        """Synchronize only group memberships"""
+        """Synchronize group memberships using group-centric approach (PUT to groups endpoint)"""
         error_result = {'groups': {'attempted': 0, 'succeeded': 0}}
 
+        # Fetch all groups from Omni
         omni_groups = self._fetch_data(self.omni_client.get_groups, "groups from Omni")
         if omni_groups is None:
             print("\n❌ Failed to fetch groups from Omni. Cannot proceed with sync.")
             return error_result
-        group_map = {group['id']: group for group in omni_groups}
 
-        # Fetch all users from Omni once and cache them
+        # Fetch all users from Omni and create username->id and id->username mappings
         omni_users = self._fetch_data(self.omni_client.get_users, "users from Omni")
         if omni_users is None:
             print("\n❌ Failed to fetch users from Omni. Cannot proceed with sync.")
             return error_result
-        omni_user_map = {user['userName']: user for user in omni_users}
+        username_to_id = {user['userName']: user['id'] for user in omni_users}
+        id_to_username = {user['id']: user['userName'] for user in omni_users}
 
-        users = self._fetch_data(self.data_source.get_users, f"users from {type(self.data_source).__name__}")
-        if users is None:
+        # Fetch desired state from data source
+        desired_users = self._fetch_data(self.data_source.get_users, f"users from {type(self.data_source).__name__}")
+        if desired_users is None:
             print("\n❌ Failed to fetch users from data source. Cannot proceed with sync.")
             return error_result
 
-        for user in users:
-            try:
-                user_name = user.get('userName')
-                if not user_name:
-                    print(f"\n⚠️ Skipping user record with missing 'userName': {user}")
-                    continue
-
-                # Look up user from cache instead of API call
-                current_user = omni_user_map.get(user_name)
-                if not current_user:
-                    print(f"\n⚠️ User not found in Omni: {user_name}")
-                    continue
-
-                group_results = self._process_user_groups(user, current_user, group_map)
-                error_result['groups']['attempted'] += group_results['attempted']
-                error_result['groups']['succeeded'] += group_results['succeeded']
-
-                # Add delay to avoid rate limiting
-                time.sleep(0.2)
-
-            except Exception as e:
-                user_name_for_error = user.get('userName', '[UNKNOWN USERNAME]')
-                print(f"\n❌ An unexpected error occurred processing user {user_name_for_error}: {str(e)}")
-                # Add delay even on error to avoid rate limiting
-                time.sleep(0.2)
+        # Build desired group memberships: {group_id: set of user_ids}
+        desired_group_members = {}
+        for user in desired_users:
+            username = user.get('userName')
+            if not username:
                 continue
 
+            user_id = username_to_id.get(username)
+            if not user_id:
+                print(f"\n⚠️ User {username} from data source not found in Omni, skipping")
+                continue
+
+            # Get desired groups for this user
+            user_groups = user.get('groups', [])
+            for group in user_groups:
+                group_id = group.get('value') if isinstance(group, dict) else group
+                if group_id:
+                    if group_id not in desired_group_members:
+                        desired_group_members[group_id] = set()
+                    desired_group_members[group_id].add(user_id)
+
+        # Build set of managed user IDs (users we have in our source data)
+        managed_user_ids = set(username_to_id.values())
+
+        # Process each group
+        for group in omni_groups:
+            group_id = group['id']
+            group_name = group.get('displayName', group_id)
+
+            # Get current members and separate into managed vs unmanaged
+            current_managed = set()  # Users in our source data
+            current_unmanaged = set()  # Embed users, external users, etc.
+            current_member_details = {}  # Keep display names
+
+            for member in group.get('members', []):
+                member_id = member.get('value') if isinstance(member, dict) else member
+                if member_id:
+                    current_member_details[member_id] = member
+                    if member_id in managed_user_ids:
+                        current_managed.add(member_id)
+                    else:
+                        current_unmanaged.add(member_id)
+
+            # Get desired managed members from source data
+            desired_managed = desired_group_members.get(group_id, set())
+
+            # Check if managed members need updating
+            if current_managed != desired_managed:
+                print(f"\n🔄 Updating group: {group_name} ({group_id})")
+                print(f"  Current managed members: {len(current_managed)}")
+                print(f"  Desired managed members: {len(desired_managed)}")
+                if current_unmanaged:
+                    print(f"  ⚠️  Preserving {len(current_unmanaged)} unmanaged members (embed users, external users, etc.)")
+
+                members_to_add = desired_managed - current_managed
+                members_to_remove = current_managed - desired_managed
+
+                if members_to_add:
+                    print(f"  ➕ Adding {len(members_to_add)} managed members")
+                if members_to_remove:
+                    print(f"  ➖ Removing {len(members_to_remove)} managed members")
+
+                # Build final member list: unmanaged (preserved) + desired managed
+                final_members = current_unmanaged | desired_managed
+
+                # Build members list for API (needs both display and value fields)
+                members_list = []
+
+                # Add unmanaged members (preserve their existing display names)
+                for user_id in current_unmanaged:
+                    if user_id in current_member_details:
+                        members_list.append(current_member_details[user_id])
+                    else:
+                        members_list.append({"value": user_id})
+
+                # Add managed members from our source
+                for user_id in desired_managed:
+                    members_list.append({
+                        "display": id_to_username.get(user_id, user_id),
+                        "value": user_id
+                    })
+
+                try:
+                    error_result['groups']['attempted'] += 1
+                    if self.dry_run:
+                        print(f"  🔍 [DRY RUN] Would update group membership")
+                        error_result['groups']['succeeded'] += 1
+                    else:
+                        success = self.omni_client.update_group_members(
+                            group_id,
+                            group_name,
+                            members_list,
+                            display_name=group.get('displayName', group_name)
+                        )
+                        if success:
+                            print(f"  ✅ Successfully updated group membership")
+                            error_result['groups']['succeeded'] += 1
+                        else:
+                            print(f"  ❌ Failed to update group membership")
+                except Exception as e:
+                    print(f"  ❌ Failed to update group: {str(e)}")
+
+                # Add delay to avoid rate limiting
+                time.sleep(0.5)
+
         print("\n📊 Groups Sync Summary:")
-        print(f"Total users processed: {len(users)}")
+        print(f"Total groups processed: {len(omni_groups)}")
         print(f"Group updates attempted: {error_result['groups']['attempted']}")
         print(f"Group updates succeeded: {error_result['groups']['succeeded']}")
-        
+
         return error_result
 
     def sync_attributes(self) -> Dict[str, Dict[str, int]]:
@@ -273,13 +245,13 @@ class OmniSync:
                 error_result['attributes']['succeeded'] += attr_results['succeeded']
 
                 # Add delay to avoid rate limiting
-                time.sleep(0.2)
+                time.sleep(0.3)
 
             except Exception as e:
                 user_name_for_error = user.get('userName', '[UNKNOWN USERNAME]')
                 print(f"\n❌ An unexpected error occurred processing user {user_name_for_error}: {str(e)}")
                 # Add delay even on error to avoid rate limiting
-                time.sleep(0.2)
+                time.sleep(0.3)
                 continue
 
         print("\n📊 Attributes Sync Summary:")
